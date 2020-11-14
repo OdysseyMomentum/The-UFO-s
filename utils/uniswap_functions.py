@@ -42,8 +42,8 @@ def bump_price(target_price_cents):
 	# we need to buy KWH
 	if target_price > 1.02*current_price:
 		logging.info("Current price of KWH too low")
-		percentage = 0.001
-		tx = uniswap_wrapper.make_trade(eth, kwh, int(eth_bal*percentage)).hex()
+		amount_to_sell_eth = eth_bal*(target_price - current_price)/(current_price + target_price)
+		tx = uniswap_wrapper.make_trade(eth, kwh, int(amount_to_sell_eth)).hex()
 		logging.info(tx)
 		uniswap_wrapper.w3.eth.waitForTransactionReceipt(tx)
 		return bump_price(target_price_cents)
@@ -56,8 +56,8 @@ def bump_price(target_price_cents):
 	# we need to buy ETH
 	elif target_price < 0.98*current_price:
 		logging.info("Current price of KWH too high")
-		percentage = 0.001
-		tx = uniswap_wrapper.make_trade(kwh, eth, int(kwh_bal*percentage)).hex()
+		amount_to_sell_kwh = kwh_bal*(current_price - target_price)/(current_price + target_price)
+		tx = uniswap_wrapper.make_trade(kwh, eth, int(amount_to_sell_kwh)).hex()
 		logging.info(tx)
 		uniswap_wrapper.w3.eth.waitForTransactionReceipt(tx)
 		return bump_price(target_price_cents)
