@@ -2,6 +2,8 @@ import os
 os.environ['PROVIDER'] = 'https://goerli.prylabs.net/'
 #os.environ['PROVIDER'] = 'https://main-rpc.linkpool.io'
 import time
+import logging
+logging.basicConfig(filename='my.log', level=logging.INFO)
 
 from uniswap import Uniswap
 address = "0xFe594E862c3ce76E192997EABFC41Afd7C975b52"
@@ -15,6 +17,12 @@ kwh = uniswap_wrapper.w3.toChecksumAddress("0x78B57C213a18DF1DAbC647149902ea1966
 
 amount = 1*10**18
 
+def wait_for_tx(tx_hash):
+	try:
+		uniswap_wrapper.w3.getTransactionReceipt(tx_hash)
+	except web3.exceptions.TransactionNotFound:
+		wait_for_tx(tx_hash)
+
 # Recursive function to get the price to the  plus minus 2 percent range within price
 def bump_price(target_price_cents):
 
@@ -25,42 +33,45 @@ def bump_price(target_price_cents):
 	current_price = uniswap_wrapper.get_token_token_input_price(kwh, weth, amount)/10**18	
 	current_price_cents = current_price * 400 * 100
 
-	print('current price eth {}'.format(current_price))
-	print('current price cents {}'.format(current_price_cents))
+	logging.info('current price eth {}'.format(current_price))
+	logging.info('current price cents {}'.format(current_price_cents))
 	
 	# the price we expect to see ETH per unit KWH
 	target_price = target_price_cents / 40000
 
 	# we need to buy KWH
 	if target_price > 1.02*current_price:
-		print("Current price of KWH too low", '\n')
-		percentage = 0.01
-		uniswap_wrapper.make_trade(eth, kwh, int(eth_bal*percentage))
+		logging.info("Current price of KWH too low")
+		percentage = 0.001
+		tx = uniswap_wrapper.make_trade(eth, kwh, int(eth_bal*percentage)).hex()
+		logging.info(tx)
+		uniswap_wrapper.w3.eth.waitForTransactionReceipt(tx)
+		return bump_price(target_price_cents)
 
 	elif target_price <= 1.02*current_price and target_price >= 0.98*current_price:
-		print('Target price within range', '\n')
-		return
+		logging.info('Target price within range')
+
+		logging.info('Bump successful!')
 
 	# we need to buy ETH
 	elif target_price < 0.98*current_price:
-		print("Current price of KWH too high", '\n')
-		percentage = 0.01
-		uniswap_wrapper.make_trade(kwh, eth, int(kwh_bal*percentage))
-	time.sleep(30)
+		logging.info("Current price of KWH too high")
+		percentage = 0.001
+		tx = uniswap_wrapper.make_trade(kwh, eth, int(kwh_bal*percentage)).hex()
+		logging.info(tx)
+		uniswap_wrapper.w3.eth.waitForTransactionReceipt(tx)
+		return bump_price(target_price_cents)
+	else:
+		logging.info('Could not bump price')
+	
 
-	return bump_price(target_price_cents)
+	
 
 '''
-bump_price(20)
+bump_price(20) # test one price bump
 
-eth_bal = uniswap_wrapper.get_eth_balance()
-kwh_bal = uniswap_wrapper.get_token_balance(kwh)
-
-# current price ETH per one unit of KWH
-current_price = uniswap_wrapper.get_token_token_input_price(kwh, weth, amount)/10**18	
-current_price_cents = current_price * 400 * 100
-
-print('current price eth {}'.format(current_price))
-print('current price cents {}'.format(current_price_cents))
+# Swap one KWH
+tx = uniswap_wrapper.make_trade(kwh, eth, int(1*10**18)).hex()
+print(tx)
+uniswap_wrapper.w3.eth.waitForTransactionReceipt(tx)
 '''
-
